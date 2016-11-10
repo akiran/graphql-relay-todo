@@ -1,15 +1,17 @@
 /**
- *  Copyright (c) 2015, Facebook, Inc.
- *  All rights reserved.
+ * This file provided by Facebook is for non-commercial testing and evaluation
+ * purposes only.  Facebook reserves all rights not expressly granted.
  *
- *  This source code is licensed under the BSD-style license found in the
- *  LICENSE file in the root directory of this source tree. An additional grant
- *  of patent rights can be found in the PATENTS file in the same directory.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * FACEBOOK BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 import {
   GraphQLBoolean,
-  GraphQLFloat,
   GraphQLID,
   GraphQLInt,
   GraphQLList,
@@ -23,121 +25,257 @@ import {
   connectionArgs,
   connectionDefinitions,
   connectionFromArray,
+  cursorForObjectInConnection,
   fromGlobalId,
   globalIdField,
   mutationWithClientMutationId,
   nodeDefinitions,
+  toGlobalId,
 } from 'graphql-relay';
 
 import {
-  // Import methods that your schema can use to interact with your database
+  Todo,
   User,
-  Widget,
+  addTodo,
+  changeTodoStatus,
+  getTodo,
+  getTodos,
   getUser,
   getViewer,
-  getWidget,
-  getWidgets,
+  markAllTodos,
+  removeCompletedTodos,
+  removeTodo,
+  renameTodo,
 } from './database';
 
-/**
- * We get the node interface and field from the Relay library.
- *
- * The first method defines the way we resolve an ID to its object.
- * The second defines the way we resolve an object to its GraphQL type.
- */
-var {nodeInterface, nodeField} = nodeDefinitions(
+const {nodeInterface, nodeField} = nodeDefinitions(
   (globalId) => {
-    var {type, id} = fromGlobalId(globalId);
-    if (type === 'User') {
+    const {type, id} = fromGlobalId(globalId);
+    if (type === 'Todo') {
+      return getTodo(id);
+    } else if (type === 'User') {
       return getUser(id);
-    } else if (type === 'Widget') {
-      return getWidget(id);
-    } else {
-      return null;
     }
+    return null;
   },
   (obj) => {
-    if (obj instanceof User) {
-      return userType;
-    } else if (obj instanceof Widget)  {
-      return widgetType;
-    } else {
-      return null;
+    if (obj instanceof Todo) {
+      return GraphQLTodo;
+    } else if (obj instanceof User) {
+      return GraphQLUser;
     }
+    return null;
   }
 );
 
-/**
- * Define your own types here
- */
-
-var userType = new GraphQLObjectType({
-  name: 'User',
-  description: 'A person who uses our app',
-  fields: () => ({
-    id: globalIdField('User'),
-    widgets: {
-      type: widgetConnection,
-      description: 'A person\'s collection of widgets',
-      args: connectionArgs,
-      resolve: (_, args) => connectionFromArray(getWidgets(), args),
-    },
-  }),
-  interfaces: [nodeInterface],
-});
-
-var widgetType = new GraphQLObjectType({
-  name: 'Widget',
-  description: 'A shiny widget',
-  fields: () => ({
-    id: globalIdField('Widget'),
-    name: {
+const GraphQLTodo = new GraphQLObjectType({
+  name: 'Todo',
+  fields: {
+    id: globalIdField('Todo'),
+    text: {
       type: GraphQLString,
-      description: 'The name of the widget',
+      resolve: (obj) => obj.text,
     },
-  }),
+    complete: {
+      type: GraphQLBoolean,
+      resolve: (obj) => obj.complete,
+    },
+  },
   interfaces: [nodeInterface],
 });
 
-/**
- * Define your own connection types here
- */
-var {connectionType: widgetConnection} =
-  connectionDefinitions({name: 'Widget', nodeType: widgetType});
+const {
+  connectionType: TodosConnection,
+  edgeType: GraphQLTodoEdge,
+} = connectionDefinitions({
+  name: 'Todo',
+  nodeType: GraphQLTodo,
+});
 
-/**
- * This is the type that will be the root of our query,
- * and the entry point into our schema.
- */
-var queryType = new GraphQLObjectType({
-  name: 'Query',
-  fields: () => ({
-    node: nodeField,
-    // Add your own root fields here
+const GraphQLUser = new GraphQLObjectType({
+  name: 'User',
+  fields: {
+    id: globalIdField('User'),
+    todos: {
+      type: TodosConnection,
+      args: {
+        status: {
+          type: GraphQLString,
+          defaultValue: 'any',
+        },
+        ...connectionArgs,
+      },
+      resolve: (obj, {status, ...args}) =>
+        connectionFromArray(getTodos(status), args),
+    },
+    totalCount: {
+      type: GraphQLInt,
+      resolve: (viewer) => getTodos().length,
+    },
+    completedCount: {
+      type: GraphQLInt,
+      resolve: () => getTodos('completed').length,
+    },
+  },
+  interfaces: [nodeInterface],
+});
+
+const Root = new GraphQLObjectType({
+  name: 'Root',
+  fields: {
     viewer: {
-      type: userType,
+      type: GraphQLUser,
       resolve: () => getViewer(),
     },
-  }),
+    node: nodeField,
+  },
 });
 
-/**
- * This is the type that will be the root of our mutations,
- * and the entry point into performing writes in our schema.
- */
-var mutationType = new GraphQLObjectType({
+const GraphQLAddTodoMutation = mutationWithClientMutationId({
+  name: 'AddTodo',
+  inputFields: {
+    text: { type: new GraphQLNonNull(GraphQLString) },
+  },
+  outputFields: {
+    todoEdge: {
+      type: GraphQLTodoEdge,
+      resolve: ({localTodoId}) => {
+        const todo = getTodo(localTodoId);
+        return {
+          cursor: cursorForObjectInConnection(getTodos(), todo),
+          node: todo,
+        };
+      },
+    },
+    viewer: {
+      type: GraphQLUser,
+      resolve: () => getViewer(),
+    },
+  },
+  mutateAndGetPayload: ({text}) => {
+    const localTodoId = addTodo(text);
+    return {localTodoId};
+  },
+});
+
+const GraphQLChangeTodoStatusMutation = mutationWithClientMutationId({
+  name: 'ChangeTodoStatus',
+  inputFields: {
+    complete: { type: new GraphQLNonNull(GraphQLBoolean) },
+    id: { type: new GraphQLNonNull(GraphQLID) },
+  },
+  outputFields: {
+    todo: {
+      type: GraphQLTodo,
+      resolve: ({localTodoId}) => getTodo(localTodoId),
+    },
+    viewer: {
+      type: GraphQLUser,
+      resolve: () => getViewer(),
+    },
+  },
+  mutateAndGetPayload: ({id, complete}) => {
+    const localTodoId = fromGlobalId(id).id;
+    changeTodoStatus(localTodoId, complete);
+    return {localTodoId};
+  },
+});
+
+const GraphQLMarkAllTodosMutation = mutationWithClientMutationId({
+  name: 'MarkAllTodos',
+  inputFields: {
+    complete: { type: new GraphQLNonNull(GraphQLBoolean) },
+  },
+  outputFields: {
+    changedTodos: {
+      type: new GraphQLList(GraphQLTodo),
+      resolve: ({changedTodoLocalIds}) => changedTodoLocalIds.map(getTodo),
+    },
+    viewer: {
+      type: GraphQLUser,
+      resolve: () => getViewer(),
+    },
+  },
+  mutateAndGetPayload: ({complete}) => {
+    const changedTodoLocalIds = markAllTodos(complete);
+    return {changedTodoLocalIds};
+  },
+});
+
+// TODO: Support plural deletes
+const GraphQLRemoveCompletedTodosMutation = mutationWithClientMutationId({
+  name: 'RemoveCompletedTodos',
+  outputFields: {
+    deletedTodoIds: {
+      type: new GraphQLList(GraphQLString),
+      resolve: ({deletedTodoIds}) => deletedTodoIds,
+    },
+    viewer: {
+      type: GraphQLUser,
+      resolve: () => getViewer(),
+    },
+  },
+  mutateAndGetPayload: () => {
+    const deletedTodoLocalIds = removeCompletedTodos();
+    const deletedTodoIds = deletedTodoLocalIds.map(toGlobalId.bind(null, 'Todo'));
+    return {deletedTodoIds};
+  },
+});
+
+const GraphQLRemoveTodoMutation = mutationWithClientMutationId({
+  name: 'RemoveTodo',
+  inputFields: {
+    id: { type: new GraphQLNonNull(GraphQLID) },
+  },
+  outputFields: {
+    deletedTodoId: {
+      type: GraphQLID,
+      resolve: ({id}) => id,
+    },
+    viewer: {
+      type: GraphQLUser,
+      resolve: () => getViewer(),
+    },
+  },
+  mutateAndGetPayload: ({id}) => {
+    const localTodoId = fromGlobalId(id).id;
+    removeTodo(localTodoId);
+    return {id};
+  },
+});
+
+const GraphQLRenameTodoMutation = mutationWithClientMutationId({
+  name: 'RenameTodo',
+  inputFields: {
+    id: { type: new GraphQLNonNull(GraphQLID) },
+    text: { type: new GraphQLNonNull(GraphQLString) },
+  },
+  outputFields: {
+    todo: {
+      type: GraphQLTodo,
+      resolve: ({localTodoId}) => getTodo(localTodoId),
+    },
+  },
+  mutateAndGetPayload: ({id, text}) => {
+    const localTodoId = fromGlobalId(id).id;
+    renameTodo(localTodoId, text);
+    return {localTodoId};
+  },
+});
+
+const Mutation = new GraphQLObjectType({
   name: 'Mutation',
-  fields: () => ({
-    // Add your own mutations here
-  })
+  fields: {
+    addTodo: GraphQLAddTodoMutation,
+    changeTodoStatus: GraphQLChangeTodoStatusMutation,
+    markAllTodos: GraphQLMarkAllTodosMutation,
+    removeCompletedTodos: GraphQLRemoveCompletedTodosMutation,
+    removeTodo: GraphQLRemoveTodoMutation,
+    renameTodo: GraphQLRenameTodoMutation,
+  },
 });
 
-/**
- * Finally, we construct our schema (whose starting query type is the query
- * type we defined above) and export it.
- */
-export var Schema = new GraphQLSchema({
-  query: queryType,
-  // Uncomment the following after adding some mutation fields:
-  // mutation: mutationType
+export const Schema = new GraphQLSchema({
+  query: Root,
+  mutation: Mutation,
 });
