@@ -19,6 +19,7 @@ const VIEWER_ID = 'me';
 // Mock user data
 const viewer = new User();
 viewer.id = VIEWER_ID;
+viewer.name = "John";
 const usersById = {
   [VIEWER_ID]: viewer,
 };

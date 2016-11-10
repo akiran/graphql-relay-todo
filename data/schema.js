@@ -96,6 +96,10 @@ const GraphQLUser = new GraphQLObjectType({
   name: 'User',
   fields: {
     id: globalIdField('User'),
+    name: {
+      type: GraphQLString,
+      resolve: (obj) => obj.name
+    },
     todos: {
       type: TodosConnection,
       args: {

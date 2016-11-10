@@ -1,16 +1,14 @@
-import React from 'react';
-import Relay from 'react-relay';
+import React from 'react'
+import Relay from 'react-relay'
+import TodoList from './TodoList'
 
 class App extends React.Component {
   render() {
+    console.log(this.props.viewer, 'app')
     return (
       <div>
-        <h1>Todo list</h1>
-        <ul>
-          {this.props.viewer.todos.edges.map(edge =>
-            <li key={edge.node.id}>{edge.node.text} (ID: {edge.node.id})</li>
-          )}
-        </ul>
+        <h1>Hello {this.props.viewer.name}</h1>
+        <TodoList viewer={this.props.viewer} />
       </div>
     );
   }
@@ -20,14 +18,8 @@ export default Relay.createContainer(App, {
   fragments: {
     viewer: () => Relay.QL`
       fragment on User {
-        todos(first: 10) {
-          edges {
-            node {
-              id,
-              text,
-            },
-          },
-        },
+        name
+        ${TodoList.getFragment('viewer')}
       }
     `,
   },
