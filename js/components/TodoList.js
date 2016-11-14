@@ -1,5 +1,6 @@
 import React, {Component} from 'react'
 import Relay from 'react-relay'
+import Todo from './Todo'
 
 class TodoList extends Component {
   loadMore = () => {
@@ -9,13 +10,13 @@ class TodoList extends Component {
     })
   }
   render() {
-    console.log(this.props.viewer, 'todolist')
+    console.log(this.props.viewer.todos, 'todolist')
     return (
       <div>
          <h3>Your todo list</h3>
         <ul>
-          {this.props.viewer.todos.edges.map(edge =>
-            <li key={edge.node.id}>{edge.node.text} (ID: {edge.node.id})</li>
+          {this.props.viewer.todos.edges.map((edge, index) =>
+            <Todo todo={edge.node} key={index} />
           )}
         </ul>
         <button onClick={this.loadMore} style={{color: '#000', background: '#ccc'}}>
@@ -36,8 +37,7 @@ export default Relay.createContainer(TodoList, {
         todos(first: $size) {
           edges {
             node {
-              id,
-              text,
+              ${Todo.getFragment('todo')}
             },
           },
         },
