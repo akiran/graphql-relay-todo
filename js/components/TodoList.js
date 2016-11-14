@@ -1,6 +1,8 @@
 import React, {Component} from 'react'
 import Relay from 'react-relay'
 import Todo from './Todo'
+import AddTodoMutation from '../mutations/AddTodoMutation'
+import TodoForm from './TodoForm'
 
 class TodoList extends Component {
   loadMore = () => {
@@ -9,11 +11,18 @@ class TodoList extends Component {
       size: variables.size + 2
     })
   }
+  addTodo = (text) => {
+    const {commitUpdate} = this.props.relay
+    commitUpdate(
+      new AddTodoMutation({text, viewer: this.props.viewer})
+    )
+  }
   render() {
     console.log(this.props.viewer.todos, 'todolist')
     return (
       <div>
-         <h3>Your todo list</h3>
+        <TodoForm addTodo={this.addTodo}/>
+        <h3>Your todo list</h3>
         <ul>
           {this.props.viewer.todos.edges.map((edge, index) =>
             <Todo todo={edge.node} key={index} />
@@ -34,13 +43,15 @@ export default Relay.createContainer(TodoList, {
   fragments: {
     viewer: () => Relay.QL`
       fragment on User {
-        todos(first: $size) {
+        todos (first: 20) {
           edges {
             node {
               ${Todo.getFragment('todo')}
             },
           },
         },
+          ${AddTodoMutation.getFragment('viewer')}
+
       }
     `,
   },

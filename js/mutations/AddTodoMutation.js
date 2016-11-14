@@ -31,9 +31,9 @@ export default class AddTodoMutation extends Relay.Mutation {
       connectionName: 'todos',
       edgeName: 'todoEdge',
       rangeBehaviors: {
-        '': 'append',
-        'status(any)': 'append',
-        'status(active)': 'append',
+        '': 'prepend',
+        'status(any)': 'prepend',
+        'status(active)': 'prepend',
         'status(completed)': 'ignore',
       },
     }];

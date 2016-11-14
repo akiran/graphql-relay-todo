@@ -43,7 +43,7 @@ export function addTodo(text, complete) {
   todo.id = `${nextTodoId++}`;
   todo.text = text;
   todosById[todo.id] = todo;
-  todoIdsByUser[VIEWER_ID].push(todo.id);
+  todoIdsByUser[VIEWER_ID].unshift(todo.id);
   return todo.id;
 }
 
