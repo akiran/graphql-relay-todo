@@ -4,7 +4,7 @@ import TodoList from './TodoList'
 
 class App extends React.Component {
   render() {
-    console.log(this.props.viewer, this.props.node, 'app')
+    console.log(this.props.node,  'app')
     return (
       <div>
         <h1>Hello {this.props.viewer.name}</h1>

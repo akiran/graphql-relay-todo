@@ -32,6 +32,10 @@ const todoIdsByUser = {
 let nextTodoId = 0;
 addTodo('Taste JavaScript', true);
 addTodo('Buy a unicorn', false);
+addTodo('Learn CSS', true);
+addTodo('Learn Reactjs', false);
+addTodo('Learn GraphQL', true);
+addTodo('Learn Relay', false);
 
 export function addTodo(text, complete) {
   const todo = new Todo();

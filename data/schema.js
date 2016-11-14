@@ -109,8 +109,10 @@ const GraphQLUser = new GraphQLObjectType({
         },
         ...connectionArgs,
       },
-      resolve: (obj, {status, ...args}) =>
-        connectionFromArray(getTodos(status), args),
+      resolve: (obj, {status, ...args}) => {
+        console.log(getTodos(status))
+        return connectionFromArray(getTodos(status), args)
+      }
     },
     totalCount: {
       type: GraphQLInt,
@@ -271,11 +273,11 @@ const Mutation = new GraphQLObjectType({
   name: 'Mutation',
   fields: {
     addTodo: GraphQLAddTodoMutation,
+    removeTodo: GraphQLRemoveTodoMutation,
+    renameTodo: GraphQLRenameTodoMutation,
     changeTodoStatus: GraphQLChangeTodoStatusMutation,
     markAllTodos: GraphQLMarkAllTodosMutation,
     removeCompletedTodos: GraphQLRemoveCompletedTodosMutation,
-    removeTodo: GraphQLRemoveTodoMutation,
-    renameTodo: GraphQLRenameTodoMutation,
   },
 });
 
